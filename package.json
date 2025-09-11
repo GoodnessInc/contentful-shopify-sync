@@ -1,17 +1,23 @@
 {
-  "name": "contentful-shopify-sync",
+  "name": "@goodness.inc/contentful-shopify-sync",
   "version": "0.0.1",
   "description": "Sync Shopify content to Contentful as entries",
+  "repository": "github:GoodnessInc/contentful-shopify-sync",
+  "homepage": "https://github.com/GoodnessInc/contentful-shopify-sync#readme",
+  "author": "Goodness Inc.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "contentful-shopify-sync": "./dist/index.js"
   },
   "scripts": {
     "dev": "tsc --watch",
     "format": "prettier --write .",
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "@shopify/storefront-api-client": "^1.0.9",
     "contentful-management": "^11.56.0",
