@@ -24,3 +24,6 @@ Thumbs.db
 *.tsbuildinfo
 coverage/
 .jest/
+
+# Generated files
+dist/
