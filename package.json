@@ -1,6 +1,6 @@
 {
   "name": "@goodness.inc/contentful-shopify-sync",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sync Shopify content to Contentful as entries",
   "repository": "github:GoodnessInc/contentful-shopify-sync",
   "homepage": "https://github.com/GoodnessInc/contentful-shopify-sync#readme",
