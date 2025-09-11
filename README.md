@@ -23,7 +23,7 @@ name: 🔄 Sync
 
 on:
   schedule:
-    - cron: '0 8 * * *' # Runs daily at 12AM PST (8AM UTC)
+    - cron: '0 8 * * *' # Runs daily at 8AM UTC (12AM PST / 1AM PDT)
   workflow_dispatch:
 
 permissions:
@@ -45,6 +45,8 @@ jobs:
     steps:
       - name: Setup Node
         uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Run @goodness.inc/contentful-shopify-sync
         run: |
