@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {createStorefrontApiClient} from '@shopify/storefront-api-client';
+import {createClient as createContentfulClient} from 'contentful-management';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
 
@@ -8,6 +9,9 @@ type ProductsArgs = {
   storefrontAccessTokens: string[];
   spaceId: string;
   cmaAccessToken: string;
+  contentTypeId: string;
+  handleFieldId: string;
+  titleFieldId: string;
 };
 
 // CLI entrypoint
@@ -39,6 +43,21 @@ yargs(hideBin(process.argv))
           type: 'string',
           demandOption: true,
           describe: 'Contentful CMA Access Token',
+        })
+        .option('content-type-id', {
+          type: 'string',
+          default: 'product',
+          describe: 'Contentful content type ID to use for products',
+        })
+        .option('handle-field-id', {
+          type: 'string',
+          default: 'handle',
+          describe: 'Contentful field ID that stores Shopify product handle',
+        })
+        .option('title-field-id', {
+          type: 'string',
+          default: 'internalTitle',
+          describe: 'Contentful field ID that stores Shopify product title',
         })
         // Validate counts match + non-empty arrays
         .check((argv) => {
@@ -73,17 +92,31 @@ async function syncProducts({
   storefrontAccessTokens,
   spaceId,
   cmaAccessToken,
+  contentTypeId,
+  handleFieldId,
+  titleFieldId,
 }: ProductsArgs) {
+  const contentfulClient = await makeContentfulClient({
+    spaceId,
+    cmaAccessToken,
+  });
+
   const shopifyProducts = await getDistinctShopifyProducts(
     storeDomains,
     storefrontAccessTokens,
   );
   console.log(`🔎 Found ${shopifyProducts.length} distinct products`);
-  for (const shopifyProduct of shopifyProducts) {
-    await createContentfulProductIfMissing({
+  for (const [index, shopifyProduct] of shopifyProducts.entries()) {
+    console.log(
+      `➡️  Syncing product ${index + 1}/${shopifyProducts.length}:`,
+      shopifyProduct.title,
+    );
+    const entry = await createContentfulEntryIfMissing({
+      contentfulClient,
       shopifyProduct,
-      spaceId,
-      cmaAccessToken,
+      contentTypeId,
+      handleFieldId,
+      titleFieldId,
     });
   }
 }
@@ -141,15 +174,75 @@ async function getProductsForStore({
   return data?.products.nodes || [];
 }
 
-async function createContentfulProductIfMissing({
+async function createContentfulEntryIfMissing({
+  contentfulClient,
   shopifyProduct,
+  contentTypeId,
+  handleFieldId,
+  titleFieldId,
+}: {
+  contentfulClient: ContentfulClient;
+  shopifyProduct: ShopifyProduct;
+  contentTypeId: string;
+  handleFieldId: string;
+  titleFieldId: string;
+}) {
+  const entry = await findEntryByHandle({
+    contentfulClient,
+    handle: shopifyProduct.handle,
+    contentTypeId,
+    handleFieldId,
+  });
+
+  // If entry exists, so return it
+  if (entry) return entry;
+
+  // Otherwise create it
+  const newEntry = await contentfulClient.createEntry(contentTypeId, {
+    fields: {
+      [handleFieldId]: {'en-US': shopifyProduct.handle},
+      [titleFieldId]: {'en-US': shopifyProduct.title},
+    },
+  });
+  await newEntry.publish(); // I think we'll always want to auto-publish it
+  return newEntry;
+}
+
+async function findEntryByHandle({
+  contentfulClient,
+  handle,
+  contentTypeId,
+  handleFieldId,
+}: {
+  contentfulClient: ContentfulClient;
+  handle: string;
+  contentTypeId: string;
+  handleFieldId: string;
+}) {
+  const entries = await contentfulClient.getEntries({
+    content_type: contentTypeId,
+    [`fields.${handleFieldId}`]: handle,
+    limit: 1,
+  });
+  return entries.items[0];
+}
+
+async function makeContentfulClient({
   spaceId,
   cmaAccessToken,
 }: {
-  shopifyProduct: ShopifyProduct;
   spaceId: string;
   cmaAccessToken: string;
-}) {}
+}) {
+  const environmentId = 'master';
+  return createContentfulClient({
+    accessToken: cmaAccessToken,
+  })
+    .getSpace(spaceId)
+    .then((space) => space.getEnvironment(environmentId));
+}
+
+type ContentfulClient = Awaited<ReturnType<typeof makeContentfulClient>>;
 
 type ShopifyProduct = {
   handle: string;

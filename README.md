@@ -14,6 +14,8 @@ yarn contentful-shopify-sync products \
   --cma-access-token=abc123
 ```
 
+Run `yarn contentful-shopify-sync products --help` to see additional options.
+
 ### Actions
 
 The expected use case is to call this from a GitHub action on some schedule to keep your Contentful Space up to date to new Products that have been added to Shopify.
@@ -24,4 +26,5 @@ To work on this locally, run `npm link` from this project to create a global sym
 
 ### TODO
 
-- [ ] Support more than 250 products per store
+- [ ] Support more than 250 Products per Store
+- [ ] Un-publish / archive Contentful entries that are missing from Shopify

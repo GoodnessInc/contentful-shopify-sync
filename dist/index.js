@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const storefront_api_client_1 = require("@shopify/storefront-api-client");
+const contentful_management_1 = require("contentful-management");
 const yargs_1 = __importDefault(require("yargs"));
 const helpers_1 = require("yargs/helpers");
 // CLI entrypoint
@@ -32,6 +33,21 @@ const helpers_1 = require("yargs/helpers");
     demandOption: true,
     describe: 'Contentful CMA Access Token',
 })
+    .option('content-type-id', {
+    type: 'string',
+    default: 'product',
+    describe: 'Contentful content type ID to use for products',
+})
+    .option('handle-field-id', {
+    type: 'string',
+    default: 'handle',
+    describe: 'Contentful field ID that stores Shopify product handle',
+})
+    .option('title-field-id', {
+    type: 'string',
+    default: 'internalTitle',
+    describe: 'Contentful field ID that stores Shopify product title',
+})
     // Validate counts match + non-empty arrays
     .check((argv) => {
     if (argv['store-domains'].length !==
@@ -54,14 +70,21 @@ const helpers_1 = require("yargs/helpers");
     .strict()
     .parse();
 // Begin handling the "products" command
-async function syncProducts({ storeDomains, storefrontAccessTokens, spaceId, cmaAccessToken, }) {
+async function syncProducts({ storeDomains, storefrontAccessTokens, spaceId, cmaAccessToken, contentTypeId, handleFieldId, titleFieldId, }) {
+    const contentfulClient = await makeContentfulClient({
+        spaceId,
+        cmaAccessToken,
+    });
     const shopifyProducts = await getDistinctShopifyProducts(storeDomains, storefrontAccessTokens);
     console.log(`🔎 Found ${shopifyProducts.length} distinct products`);
-    for (const shopifyProduct of shopifyProducts) {
-        await createContentfulProductIfMissing({
+    for (const [index, shopifyProduct] of shopifyProducts.entries()) {
+        console.log(`➡️  Syncing product ${index + 1}/${shopifyProducts.length}:`, shopifyProduct.title);
+        const entry = await createContentfulEntryIfMissing({
+            contentfulClient,
             shopifyProduct,
-            spaceId,
-            cmaAccessToken,
+            contentTypeId,
+            handleFieldId,
+            titleFieldId,
         });
     }
 }
@@ -103,4 +126,39 @@ async function getProductsForStore({ storeDomain, storefrontAccessToken, }) {
         throw new Error(JSON.stringify(errors));
     return data?.products.nodes || [];
 }
-async function createContentfulProductIfMissing({ shopifyProduct, spaceId, cmaAccessToken, }) { }
+async function createContentfulEntryIfMissing({ contentfulClient, shopifyProduct, contentTypeId, handleFieldId, titleFieldId, }) {
+    const entry = await findEntryByHandle({
+        contentfulClient,
+        handle: shopifyProduct.handle,
+        contentTypeId,
+        handleFieldId,
+    });
+    // If entry exists, so return it
+    if (entry)
+        return entry;
+    // Otherwise create it
+    const newEntry = await contentfulClient.createEntry(contentTypeId, {
+        fields: {
+            [handleFieldId]: { 'en-US': shopifyProduct.handle },
+            [titleFieldId]: { 'en-US': shopifyProduct.title },
+        },
+    });
+    await newEntry.publish(); // I think we'll always want to auto-publish it
+    return newEntry;
+}
+async function findEntryByHandle({ contentfulClient, handle, contentTypeId, handleFieldId, }) {
+    const entries = await contentfulClient.getEntries({
+        content_type: contentTypeId,
+        [`fields.${handleFieldId}`]: handle,
+        limit: 1,
+    });
+    return entries.items[0];
+}
+async function makeContentfulClient({ spaceId, cmaAccessToken, }) {
+    const environmentId = 'master';
+    return (0, contentful_management_1.createClient)({
+        accessToken: cmaAccessToken,
+    })
+        .getSpace(spaceId)
+        .then((space) => space.getEnvironment(environmentId));
+}
