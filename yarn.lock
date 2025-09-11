@@ -105,9 +105,9 @@ combined-stream@^1.0.8:
     delayed-stream "~1.0.0"
 
 contentful-management@^11.56.0:
-  version "11.56.0"
-  resolved "https://registry.yarnpkg.com/contentful-management/-/contentful-management-11.56.0.tgz#fbf41fc6f0af7d7e81d6d44631b719eaffe2e80b"
-  integrity sha512-d8VeXYNpV3mgiWVEkB1g085NK/RLn2GkqIrjrgZul+2+9GIVRQP9EUrchLaJSizje4Mqrx1y7QlnAImZNZIovw==
+  version "11.57.0"
+  resolved "https://registry.yarnpkg.com/contentful-management/-/contentful-management-11.57.0.tgz#34635299126d4559e9b91f3626bed3586dc4a867"
+  integrity sha512-OURvsF8J9gR5XN/pCQVUAwGYX0GJS6+rYHgUD5UJyVMZ3nuoMGjlGuHtLk3kt58GP5okyYihUjvzkcDgoq6Byw==
   dependencies:
     "@contentful/rich-text-types" "^16.6.1"
     axios "^1.11.0"
