@@ -217,9 +217,12 @@ async function createContentfulEntryIfMissing({
     handleFieldId,
   });
 
-  // Re-publish if it exists but is unpublished
+  // Re-publish if it exists but is unpublished but not archived. If archived,
+  // assuming this was intentionally hidden
   if (entry) {
-    if (!entry.isPublished()) await entry.publish();
+    if (!entry.isPublished() && !entry.isArchived()) {
+      await entry.publish();
+    }
     return entry;
   }
 
