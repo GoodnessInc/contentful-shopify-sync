@@ -101,23 +101,44 @@ async function syncProducts({
     cmaAccessToken,
   });
 
+  // Get Shopify products across multiple stores
   const shopifyProducts = await getDistinctShopifyProducts(
     storeDomains,
     storefrontAccessTokens,
   );
   console.log(`🔎 Found ${shopifyProducts.length} distinct products`);
+
+  // Ensure all of these products are available in Contentful
   for (const [index, shopifyProduct] of shopifyProducts.entries()) {
     console.log(
       `➡️  Syncing product ${index + 1}/${shopifyProducts.length}:`,
       shopifyProduct.title,
     );
-    const entry = await createContentfulEntryIfMissing({
+    await createContentfulEntryIfMissing({
       contentfulClient,
       shopifyProduct,
       contentTypeId,
       handleFieldId,
       titleFieldId,
     });
+  }
+
+  // Unpublish any Contentful entries lack a atching Shopify product
+  const publishedEntries = await getPublishedEntries({
+    contentfulClient,
+    contentTypeId,
+  });
+  const entriesToUnpublish = publishedEntries.filter((entry) => {
+    const handle = entry.fields[handleFieldId]?.['en-US'];
+    return handle && !shopifyProducts.find((p) => p.handle === handle);
+  });
+  console.log(`🔎 Found ${entriesToUnpublish.length} entries to unpublish`);
+  for (const [index, entry] of entriesToUnpublish.entries()) {
+    console.log(
+      `🗑️ Unpublishing entry ${index + 1}/${entriesToUnpublish.length}:`,
+      entry.fields[titleFieldId]?.['en-US'] || 'Unknown title',
+    );
+    await entry.unpublish();
   }
 }
 
@@ -174,6 +195,8 @@ async function getProductsForStore({
   return data?.products.nodes || [];
 }
 
+// Create a Contentful entry for the given Shopify product if it doesn't
+// already exist
 async function createContentfulEntryIfMissing({
   contentfulClient,
   shopifyProduct,
@@ -194,8 +217,11 @@ async function createContentfulEntryIfMissing({
     handleFieldId,
   });
 
-  // If entry exists, so return it
-  if (entry) return entry;
+  // Re-publish if it exists but is unpublished
+  if (entry) {
+    if (!entry.isPublished()) await entry.publish();
+    return entry;
+  }
 
   // Otherwise create it
   const newEntry = await contentfulClient.createEntry(contentTypeId, {
@@ -208,6 +234,7 @@ async function createContentfulEntryIfMissing({
   return newEntry;
 }
 
+// Find a Contentful entry by its Shopify handle
 async function findEntryByHandle({
   contentfulClient,
   handle,
@@ -227,6 +254,22 @@ async function findEntryByHandle({
   return entries.items[0];
 }
 
+// Get all published entries of the given content type
+async function getPublishedEntries({
+  contentfulClient,
+  contentTypeId,
+}: {
+  contentfulClient: ContentfulClient;
+  contentTypeId: string;
+}) {
+  const entries = await contentfulClient.getPublishedEntries({
+    content_type: contentTypeId,
+    limit: 250, // Match Shopify limit
+  });
+  return entries.items;
+}
+
+// Create a Contentful Management API client and get the desired environment
 async function makeContentfulClient({
   spaceId,
   cmaAccessToken,

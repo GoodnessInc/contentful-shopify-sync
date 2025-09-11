@@ -27,4 +27,4 @@ To work on this locally, run `npm link` from this project to create a global sym
 ### TODO
 
 - [ ] Support more than 250 Products per Store
-- [ ] Un-publish / archive Contentful entries that are missing from Shopify
+- [x] Un-publish / archive Contentful entries that are missing from Shopify
