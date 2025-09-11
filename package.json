@@ -16,7 +16,7 @@
     "dev": "tsc --watch",
     "format": "prettier --write .",
     "build": "tsc",
-    "prepublishOnly": "npm run build"
+    "preversion": "npm run build"
   },
   "dependencies": {
     "@shopify/storefront-api-client": "^1.0.9",
