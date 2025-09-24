@@ -13,9 +13,9 @@
     "contentful-shopify-sync": "./dist/index.js"
   },
   "scripts": {
-    "dev": "tsc --watch",
+    "dev": "yarn build && tsc --watch",
     "format": "prettier --write .",
-    "build": "tsc",
+    "build": "tsc && chmod +x ./dist/index.js",
     "preversion": "npm run build"
   },
   "dependencies": {
