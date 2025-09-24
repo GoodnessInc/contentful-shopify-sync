@@ -12,6 +12,7 @@ type ProductsArgs = {
   contentTypeId: string;
   handleFieldId: string;
   titleFieldId: string;
+  disableUnpublish: boolean;
 };
 
 // CLI entrypoint
@@ -59,6 +60,11 @@ yargs(hideBin(process.argv))
           default: 'internalTitle',
           describe: 'Contentful field ID that stores Shopify product title',
         })
+        .option('disable-unpublish', {
+          type: 'boolean',
+          describe:
+            'Disable unpublishing entries that lack a matching Shopify product',
+        })
         // Validate counts match + non-empty arrays
         .check((argv) => {
           if (
@@ -95,6 +101,7 @@ async function syncProducts({
   contentTypeId,
   handleFieldId,
   titleFieldId,
+  disableUnpublish,
 }: ProductsArgs) {
   const contentfulClient = await makeContentfulClient({
     spaceId,
@@ -124,21 +131,26 @@ async function syncProducts({
   }
 
   // Unpublish any Contentful entries lack a atching Shopify product
-  const publishedEntries = await getPublishedEntries({
-    contentfulClient,
-    contentTypeId,
-  });
-  const entriesToUnpublish = publishedEntries.filter((entry) => {
-    const handle = entry.fields[handleFieldId]?.['en-US'];
-    return handle && !shopifyProducts.find((p) => p.handle === handle);
-  });
-  console.log(`🔎 Found ${entriesToUnpublish.length} entries to unpublish`);
-  for (const [index, entry] of entriesToUnpublish.entries()) {
-    console.log(
-      `🗑️ Unpublishing entry ${index + 1}/${entriesToUnpublish.length}:`,
-      entry.fields[titleFieldId]?.['en-US'] || 'Unknown title',
-    );
-    await entry.unpublish();
+  if (!disableUnpublish) {
+    // Find entries to unpublish
+    const publishedEntries = await getPublishedEntries({
+      contentfulClient,
+      contentTypeId,
+    });
+    const entriesToUnpublish = publishedEntries.filter((entry) => {
+      const handle = entry.fields[handleFieldId]?.['en-US'];
+      return handle && !shopifyProducts.find((p) => p.handle === handle);
+    });
+
+    // Do the unpublishing
+    console.log(`🔎 Found ${entriesToUnpublish.length} entries to unpublish`);
+    for (const [index, entry] of entriesToUnpublish.entries()) {
+      console.log(
+        `🗑️ Unpublishing entry ${index + 1}/${entriesToUnpublish.length}:`,
+        entry.fields[titleFieldId]?.['en-US'] || 'Unknown title',
+      );
+      await entry.unpublish();
+    }
   }
 }
 
