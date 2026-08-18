@@ -178,7 +178,7 @@ async function getDistinctShopifyProducts(
   }, [] as ShopifyProduct[]);
 }
 
-// Get all product handles for a single store, currenlty limited to 250 products
+// Get all products for a single store, paginating through the full result set
 async function getProductsForStore({
   storeDomain,
   storefrontAccessToken,
@@ -191,20 +191,40 @@ async function getProductsForStore({
     apiVersion: '2025-07',
     publicAccessToken: storefrontAccessToken,
   });
-  const {data, errors} = await client.request<{
-    products: {nodes: ShopifyProduct[]};
-  }>(`
-    query {
-      products(first: 250) {
-        nodes {
-          title
-          handle
+
+  const products: ShopifyProduct[] = [];
+  let cursor: string | null = null;
+
+  while (true) {
+    type ProductsResponse = {
+      products: {nodes: ShopifyProduct[]; pageInfo: {hasNextPage: boolean; endCursor: string}};
+    };
+    const result: {data?: ProductsResponse; errors?: unknown} = await client.request<ProductsResponse>(
+      `
+      query ($after: String) {
+        products(first: 250, after: $after) {
+          nodes {
+            title
+            handle
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
       }
-    }
-  `);
-  if (errors) throw new Error(JSON.stringify(errors));
-  return data?.products.nodes || [];
+    `,
+      {variables: {after: cursor}},
+    );
+    if (result.errors) throw new Error(JSON.stringify(result.errors));
+    const page: ProductsResponse['products'] | undefined = result.data?.products;
+    if (!page) break;
+    products.push(...page.nodes);
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+    if (!cursor) break;
+  }
+
+  return products;
 }
 
 // Create a Contentful entry for the given Shopify product if it doesn't
@@ -269,7 +289,7 @@ async function findEntryByHandle({
   return entries.items[0];
 }
 
-// Get all published entries of the given content type
+// Get all published entries of the given content type, paginating through the full result set
 async function getPublishedEntries({
   contentfulClient,
   contentTypeId,
@@ -277,11 +297,22 @@ async function getPublishedEntries({
   contentfulClient: ContentfulClient;
   contentTypeId: string;
 }) {
-  const entries = await contentfulClient.getPublishedEntries({
-    content_type: contentTypeId,
-    limit: 250, // Match Shopify limit
-  });
-  return entries.items;
+  const pageSize = 200;
+  let skip = 0;
+  const allItems: Awaited<ReturnType<ContentfulClient['getPublishedEntries']>>['items'] = [];
+
+  let page: Awaited<ReturnType<ContentfulClient['getPublishedEntries']>>;
+  do {
+    page = await contentfulClient.getPublishedEntries({
+      content_type: contentTypeId,
+      limit: pageSize,
+      skip,
+    });
+    allItems.push(...page.items);
+    skip += pageSize;
+  } while (page.items.length === pageSize);
+
+  return allItems;
 }
 
 // Create a Contentful Management API client and get the desired environment
